@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-neo-bg text-neo-ink antialiased font-sans;
+  }
+  *:focus-visible {
+    @apply outline-none ring-2 ring-neo-pink ring-offset-2 ring-offset-neo-bg rounded-sm;
+  }
+}
+
+@layer components {
+  .neo-border {
+    @apply border-2 border-neo-line;
+  }
+  .neo-card {
+    @apply neo-border bg-white shadow-neo;
+  }
+  .neo-btn {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-neo-line px-4 py-2 text-sm font-semibold
+      shadow-neo-sm transition-transform active:translate-x-0.5 active:translate-y-0.5 active:shadow-none
+      disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-x-0 disabled:active:translate-y-0 disabled:shadow-neo-sm;
+  }
+  .neo-btn-primary {
+    @apply neo-btn bg-neo-yellow text-neo-ink hover:bg-[#ffef3d];
+  }
+  .neo-btn-secondary {
+    @apply neo-btn bg-white text-neo-ink hover:bg-neo-bg;
+  }
+  .neo-btn-danger {
+    @apply neo-btn bg-neo-pink text-white hover:bg-[#ff335e];
+  }
+  .neo-btn-ghost {
+    @apply neo-btn border-transparent shadow-none bg-transparent hover:bg-white/80;
+  }
+  .neo-input {
+    @apply w-full border-2 border-neo-line bg-white px-3 py-2 text-sm font-medium shadow-neo-sm
+      placeholder:text-neo-muted focus:border-neo-ink;
+  }
+  .neo-label {
+    @apply block text-xs font-bold uppercase tracking-wide text-neo-ink mb-1;
+  }
+  .neo-pill {
+    @apply inline-flex items-center gap-1 border-2 border-neo-line px-2 py-0.5 text-xs font-bold shadow-neo-sm;
+  }
+  .pill-available {
+    @apply neo-pill bg-neo-green/30 text-neo-ink;
+  }
+  .pill-limited {
+    @apply neo-pill bg-neo-yellow/80 text-neo-ink;
+  }
+  .pill-out {
+    @apply neo-pill bg-neo-pink text-white border-neo-line;
+  }
+  .pill-neutral {
+    @apply neo-pill bg-neo-bg text-neo-ink;
+  }
+  .neo-badge-alert {
+    @apply inline-flex min-w-[1.25rem] items-center justify-center rounded-sm border-2 border-neo-line bg-red-500 px-1 text-[10px] font-bold text-white shadow-neo-sm;
+  }
+}
