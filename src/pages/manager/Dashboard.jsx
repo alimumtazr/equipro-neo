@@ -18,7 +18,7 @@ import { formatDate, formatDateTime } from "../../lib/format.js";
 
 const TABS = [
   { id: "pending", label: "Pending", filter: "pending,waitlisted" },
-  { id: "active", label: "Active", filter: "approved,active" },
+  { id: "active", label: "Issued", filter: "approved,active" },
   { id: "overdue", label: "Overdue", filter: "active" },
   { id: "history", label: "History", filter: "returned,cancelled,rejected" },
 ];
@@ -46,9 +46,9 @@ function emptyStateForTab(tab) {
     case "active":
       return {
         icon: Boxes,
-        title: "No active checkouts",
+        title: "Nothing issued yet",
         description:
-          "When you approve and issue equipment, active loans show here with student and project details.",
+          "When you approve and issue equipment, those loans show here with student and project details.",
       };
     case "overdue":
       return {
@@ -189,7 +189,7 @@ export default function Dashboard() {
         <div>
           <h1 className="font-display text-3xl font-bold">Manager dashboard</h1>
           <p className="text-sm font-medium text-neo-muted">
-            Pending queue first — then active loans, overdue risk, and full history.
+            Pending queue first — then issued equipment, overdue risk, and full history.
           </p>
         </div>
         <Link to="/manager/maintenance" className="neo-btn-secondary">
