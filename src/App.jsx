@@ -34,6 +34,7 @@ export default function App() {
         </Route>
         <Route element={<RoleGuard role="manager" />}>
           <Route path="/manager" element={<Dashboard />} />
+          <Route path="/manager/inventory" element={<Catalog />} />
           <Route path="/manager/requests/:id" element={<ManagerRequestDetail />} />
           <Route path="/manager/requests/:id/return" element={<ReturnWizard />} />
           <Route path="/manager/maintenance" element={<Maintenance />} />

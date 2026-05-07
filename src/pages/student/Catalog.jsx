@@ -4,10 +4,13 @@ import {
   Boxes,
   CheckCircle2,
   Clock4,
+  Minus,
   PackageOpen,
   Plus,
   Search,
   ShoppingCart,
+  Trash2,
+  X,
 } from "lucide-react";
 
 import { api } from "../../lib/api.js";
@@ -35,8 +38,11 @@ const AVAILABILITY = [
   { id: "out", label: "Out of stock" },
 ];
 
+const INVENTORY_TYPES = TYPES.filter((t) => t !== "All");
+
 export default function Catalog() {
   const { user } = useAuth();
+  const managerView = user?.role === "manager";
   const [query, setQuery] = useState("");
   const [type, setType] = useState("All");
   const [availability, setAvailability] = useState("all");
@@ -47,6 +53,17 @@ export default function Catalog() {
   const [cart, setCart] = useState([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addForm, setAddForm] = useState({
+    code: "",
+    name: "",
+    type: INVENTORY_TYPES[0] ?? "Microcontroller",
+    description: "",
+    quantity: "1",
+  });
+  const [addSubmitting, setAddSubmitting] = useState(false);
+  const [addError, setAddError] = useState(null);
+  const [inventoryBusyId, setInventoryBusyId] = useState(null);
 
   const userId = user?._id ?? user?.id;
 
@@ -77,6 +94,102 @@ export default function Catalog() {
       cancelled = true;
     };
   }, [filters]);
+
+  useEffect(() => {
+    if (!addModalOpen) return;
+    setAddForm({
+      code: "",
+      name: "",
+      type: INVENTORY_TYPES[0] ?? "Microcontroller",
+      description: "",
+      quantity: "1",
+    });
+    setAddError(null);
+    setAddSubmitting(false);
+  }, [addModalOpen]);
+
+  useEffect(() => {
+    if (!addModalOpen) return;
+    function onKey(event) {
+      if (event.key === "Escape") setAddModalOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [addModalOpen]);
+
+  async function refreshComponents() {
+    try {
+      const data = await api.listComponents(filters);
+      setComponents(data);
+    } catch {
+      /* leave list unchanged */
+    }
+  }
+
+  async function handleAdjustStock(componentId, body) {
+    setInventoryBusyId(componentId);
+    try {
+      await api.adjustComponentStock(componentId, body);
+      await refreshComponents();
+      setToast({ type: "success", message: "Stock updated." });
+      setTimeout(() => setToast(null), 2200);
+    } catch (err) {
+      setToast({ type: "error", message: err.message });
+      setTimeout(() => setToast(null), 2800);
+    } finally {
+      setInventoryBusyId(null);
+    }
+  }
+
+  async function handleDeleteComponent(componentId, name) {
+    if (!window.confirm(`Remove "${name}" from inventory? This cannot be undone.`)) return;
+    setInventoryBusyId(componentId);
+    try {
+      await api.deleteComponent(componentId);
+      await refreshComponents();
+      setToast({ type: "success", message: "Item removed from inventory." });
+      setTimeout(() => setToast(null), 2200);
+    } catch (err) {
+      setToast({ type: "error", message: err.message });
+      setTimeout(() => setToast(null), 2800);
+    } finally {
+      setInventoryBusyId(null);
+    }
+  }
+
+  async function handleAddItemSubmit(event) {
+    event.preventDefault();
+    setAddError(null);
+    const code = addForm.code.trim();
+    const name = addForm.name.trim();
+    const qty = Number.parseInt(addForm.quantity, 10);
+    if (!code || !name) {
+      setAddError("Code and name are required.");
+      return;
+    }
+    if (Number.isNaN(qty) || qty < 0 || qty > 500) {
+      setAddError("Quantity must be between 0 and 500.");
+      return;
+    }
+    setAddSubmitting(true);
+    try {
+      await api.createComponent({
+        code,
+        name,
+        type: addForm.type,
+        description: addForm.description.trim(),
+        quantity: qty,
+      });
+      await refreshComponents();
+      setAddModalOpen(false);
+      setToast({ type: "success", message: "Inventory item added." });
+      setTimeout(() => setToast(null), 2200);
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddSubmitting(false);
+    }
+  }
 
   const cartCount = cart.reduce((sum, e) => sum + e.qty, 0);
 
@@ -151,28 +264,46 @@ export default function Catalog() {
   }
 
   return (
-    <div className="space-y-6 pb-24 md:pb-6">
+    <div className={`space-y-6 ${managerView ? "pb-6" : "pb-24 md:pb-6"}`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold">Component catalog</h1>
+          <h1 className="font-display text-3xl font-bold">
+            {managerView ? "Inventory" : "Component catalog"}
+          </h1>
           <p className="text-sm font-medium text-neo-muted mt-1">
-            Search, filter by availability, then add parts to your request basket.
+            {managerView
+              ? "Browse stock, add or remove units, add new SKUs, or delete lines. Process requests from the dashboard."
+              : "Search, filter by availability, then add parts to your request basket."}
           </p>
         </div>
-        <button
-          type="button"
-          className="neo-btn-primary px-5 py-3 text-base relative"
-          onClick={() => setPanelOpen(true)}
-          disabled={cart.length === 0}
-        >
-          <ShoppingCart className="h-5 w-5" />
-          Review request
-          {cartCount > 0 && (
-            <span className="absolute -top-2 -right-2 min-w-[1.75rem] h-7 px-1 flex items-center justify-center rounded-sm border-2 border-neo-line bg-neo-pink text-white text-sm font-black shadow-neo-sm">
-              {cartCount > 99 ? "99+" : cartCount}
-            </span>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {managerView && (
+            <button
+              type="button"
+              className="neo-btn-primary px-5 py-3 text-base"
+              onClick={() => setAddModalOpen(true)}
+            >
+              <Plus className="h-5 w-5" />
+              Add inventory item
+            </button>
           )}
-        </button>
+          {!managerView && (
+            <button
+              type="button"
+              className="neo-btn-primary px-5 py-3 text-base relative"
+              onClick={() => setPanelOpen(true)}
+              disabled={cart.length === 0}
+            >
+              <ShoppingCart className="h-5 w-5" />
+              Review request
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 min-w-[1.75rem] h-7 px-1 flex items-center justify-center rounded-sm border-2 border-neo-line bg-neo-pink text-white text-sm font-black shadow-neo-sm">
+                  {cartCount > 99 ? "99+" : cartCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="neo-card p-4 flex flex-col md:flex-row gap-3 md:items-center">
@@ -243,6 +374,10 @@ export default function Catalog() {
               component={component}
               cart={cart}
               userId={userId}
+              managerView={managerView}
+              inventoryBusy={inventoryBusyId === (component._id ?? component.id)}
+              onAdjustStock={handleAdjustStock}
+              onDeleteComponent={handleDeleteComponent}
               onAdd={() => addToCart(component)}
               onToggleWaitlist={() => joinWaitlist(component)}
             />
@@ -250,22 +385,24 @@ export default function Catalog() {
         </div>
       )}
 
-      <RequestPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        cart={cart}
-        onUpdateQty={updateQty}
-        onRemove={removeFromCart}
-        onSubmitted={() => {
-          setCart([]);
-          setPanelOpen(false);
-          setToast({ type: "success", message: "Request submitted." });
-          setTimeout(() => setToast(null), 2200);
-          api.listComponents(filters).then(setComponents).catch(() => {});
-        }}
-      />
+      {!managerView && (
+        <RequestPanel
+          open={panelOpen}
+          onClose={() => setPanelOpen(false)}
+          cart={cart}
+          onUpdateQty={updateQty}
+          onRemove={removeFromCart}
+          onSubmitted={() => {
+            setCart([]);
+            setPanelOpen(false);
+            setToast({ type: "success", message: "Request submitted." });
+            setTimeout(() => setToast(null), 2200);
+            api.listComponents(filters).then(setComponents).catch(() => {});
+          }}
+        />
+      )}
 
-      {cart.length > 0 && (
+      {!managerView && cart.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-3 md:hidden z-30 bg-neo-bg/95 border-t-2 border-neo-line shadow-[0_-4px_0_0_#0f0f0f]">
           <button
             type="button"
@@ -296,17 +433,158 @@ export default function Catalog() {
           {toast.message}
         </div>
       )}
+
+      {addModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-neo-ink/50"
+            onClick={() => !addSubmitting && setAddModalOpen(false)}
+            aria-hidden
+          />
+          <div
+            className="relative neo-card w-full max-w-md p-5 max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inv-add-title"
+          >
+            <header className="flex items-start justify-between mb-3">
+              <div>
+                <h2 id="inv-add-title" className="font-display text-lg font-bold">
+                  Add inventory item
+                </h2>
+                <p className="text-xs font-medium text-neo-muted mt-0.5">
+                  Creates a new SKU with the chosen number of good shelf units.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !addSubmitting && setAddModalOpen(false)}
+                className="neo-btn-ghost p-1.5"
+                aria-label="Close"
+                disabled={addSubmitting}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <form onSubmit={handleAddItemSubmit} className="space-y-3">
+              <div>
+                <label htmlFor="inv-code" className="neo-label">
+                  Stock code <span className="text-neo-pink">*</span>
+                </label>
+                <input
+                  id="inv-code"
+                  className="neo-input font-mono"
+                  value={addForm.code}
+                  onChange={(e) => setAddForm((f) => ({ ...f, code: e.target.value }))}
+                  placeholder="e.g. ARD-NANO"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="inv-name" className="neo-label">
+                  Name <span className="text-neo-pink">*</span>
+                </label>
+                <input
+                  id="inv-name"
+                  className="neo-input"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Component display name"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="inv-type" className="neo-label">
+                  Type
+                </label>
+                <select
+                  id="inv-type"
+                  className="neo-input"
+                  value={addForm.type}
+                  onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))}
+                >
+                  {INVENTORY_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="inv-desc" className="neo-label">
+                  Description
+                </label>
+                <input
+                  id="inv-desc"
+                  className="neo-input"
+                  value={addForm.description}
+                  onChange={(e) => setAddForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional short description"
+                />
+              </div>
+              <div>
+                <label htmlFor="inv-qty" className="neo-label">
+                  Initial good units
+                </label>
+                <input
+                  id="inv-qty"
+                  className="neo-input"
+                  type="number"
+                  min={0}
+                  max={500}
+                  value={addForm.quantity}
+                  onChange={(e) => setAddForm((f) => ({ ...f, quantity: e.target.value }))}
+                />
+              </div>
+
+              {addError && (
+                <div className="neo-border bg-neo-pink/10 p-3 text-sm font-semibold text-neo-ink flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  {addError}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAddModalOpen(false)}
+                  className="neo-btn-secondary flex-1"
+                  disabled={addSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="neo-btn-primary flex-1" disabled={addSubmitting}>
+                  {addSubmitting ? "Saving…" : "Add item"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ComponentCard({ component, cart, userId, onAdd, onToggleWaitlist }) {
+function ComponentCard({
+  component,
+  cart,
+  userId,
+  onAdd,
+  onToggleWaitlist,
+  managerView,
+  inventoryBusy,
+  onAdjustStock,
+  onDeleteComponent,
+}) {
   const cid = component._id ?? component.id;
   const availability = availabilityLabel(component);
   const isOut = component.available_qty === 0;
   const inCart = cart.find((c) => c.component_id === cid);
   const damagedCount = component.units?.filter((u) => u.condition === "damaged").length ?? 0;
   const isWaitlisted = Boolean(userId && (component.waitlist || []).includes(userId));
+  const waitlistCount = (component.waitlist || []).length;
 
   return (
     <article className="neo-card p-4 flex flex-col h-full">
@@ -329,26 +607,65 @@ function ComponentCard({ component, cart, userId, onAdd, onToggleWaitlist }) {
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-2">
-        {isOut ? (
+      {managerView ? (
+        <div className="mt-4 pt-3 border-t-2 border-neo-line space-y-2 text-xs font-bold font-mono">
+          <div>
+            {component.available_qty} / {component.total_qty} available
+          </div>
+          {waitlistCount > 0 && (
+            <div className="font-sans font-semibold text-neo-muted">
+              {waitlistCount} on waitlist
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 font-sans">
+            <button
+              type="button"
+              className="neo-btn-secondary flex-1 min-w-[6.5rem] text-xs py-2"
+              disabled={inventoryBusy || component.available_qty <= 0}
+              onClick={() => onAdjustStock(cid, { remove_good: 1 })}
+            >
+              <Minus className="h-4 w-4" /> −1 unit
+            </button>
+            <button
+              type="button"
+              className="neo-btn-secondary flex-1 min-w-[6.5rem] text-xs py-2"
+              disabled={inventoryBusy}
+              onClick={() => onAdjustStock(cid, { add_good: 1 })}
+            >
+              <Plus className="h-4 w-4" /> +1 unit
+            </button>
+          </div>
           <button
             type="button"
-            onClick={onToggleWaitlist}
-            className={isWaitlisted ? "neo-btn-secondary flex-1 bg-neo-cyan/30" : "neo-btn-secondary flex-1"}
+            className="neo-btn-danger w-full text-xs py-2 font-sans"
+            disabled={inventoryBusy}
+            onClick={() => onDeleteComponent(cid, component.name)}
           >
-            <Clock4 className="h-4 w-4" />
-            {isWaitlisted ? "On waitlist · tap to leave" : "Join waitlist"}
+            <Trash2 className="h-4 w-4" /> Remove SKU
           </button>
-        ) : inCart ? (
-          <button type="button" onClick={onAdd} className="neo-btn-secondary flex-1">
-            <Plus className="h-4 w-4" /> Add more ({inCart.qty})
-          </button>
-        ) : (
-          <button type="button" onClick={onAdd} className="neo-btn-primary flex-1">
-            <Plus className="h-4 w-4" /> Add to request
-          </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center gap-2">
+          {isOut ? (
+            <button
+              type="button"
+              onClick={onToggleWaitlist}
+              className={isWaitlisted ? "neo-btn-secondary flex-1 bg-neo-cyan/30" : "neo-btn-secondary flex-1"}
+            >
+              <Clock4 className="h-4 w-4" />
+              {isWaitlisted ? "On waitlist · tap to leave" : "Join waitlist"}
+            </button>
+          ) : inCart ? (
+            <button type="button" onClick={onAdd} className="neo-btn-secondary flex-1">
+              <Plus className="h-4 w-4" /> Add more ({inCart.qty})
+            </button>
+          ) : (
+            <button type="button" onClick={onAdd} className="neo-btn-primary flex-1">
+              <Plus className="h-4 w-4" /> Add to request
+            </button>
+          )}
+        </div>
+      )}
     </article>
   );
 }

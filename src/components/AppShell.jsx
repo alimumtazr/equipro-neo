@@ -12,6 +12,7 @@ const studentLinks = [
 
 const managerLinks = [
   { to: "/manager", label: "Dashboard" },
+  { to: "/manager/inventory", label: "Inventory" },
   { to: "/manager/maintenance", label: "Maintenance" },
 ];
 

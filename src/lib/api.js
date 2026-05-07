@@ -78,12 +78,17 @@ export const api = {
 
   listComponents: (params = {}) => {
     const search = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => {
+      Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "") search.set(k, v);
     });
     const qs = search.toString();
     return apiFetch(`/components${qs ? `?${qs}` : ""}`);
   },
+  createComponent: (payload) =>
+    apiFetch("/components", { method: "POST", body: JSON.stringify(payload) }),
+  deleteComponent: (id) => apiFetch(`/components/${id}`, { method: "DELETE" }),
+  adjustComponentStock: (id, body) =>
+    apiFetch(`/components/${id}/stock`, { method: "POST", body: JSON.stringify(body) }),
   getComponent: (id) => apiFetch(`/components/${id}`),
   toggleWaitlist: (id) => apiFetch(`/components/${id}/waitlist`, { method: "POST" }),
 
