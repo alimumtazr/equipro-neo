@@ -77,9 +77,6 @@ export default function Login() {
             returns and damage. GIKI CS324 — Human Computer Interaction.
           </p>
         </div>
-        <div className="text-xs font-bold uppercase tracking-wider text-neo-ink/60">
-          Neobrutal UI preview · same API as classic EquiPro
-        </div>
       </div>
 
       <div className="flex items-center justify-center p-6 lg:p-10">
